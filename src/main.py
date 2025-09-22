@@ -5,14 +5,20 @@ import pandas # not used yet
 
 # Included with Python
 import json # not used yet aswell.
+import os
+from pathlib import Path
+import time
 
 class Main:
     def __init__(self):
+        # Variables used
+        self.save_text = "Saving to JSON. Please wait."
+
         # Work Center Data
         self.work_center_name: str = None
         self.capacity: int = None
         self.cost_per_hour: float = None
-
+        
         # Routing Data
         self.operation: str = None
         self.assigned_work_center: str = None
@@ -21,61 +27,125 @@ class Main:
         # Production Quantity   
         self.quantity: int = None
 
-        # I dont wanna fucking invoke this shit no more
-        self.run()
+        # Dictionary Initialization
+        if "work_center_data" not in st.session_state:
+            st.session_state.work_center_data = {"work_centers": [], "routing": [], "quantity": None}
+
+        if "save_to_json" not in st.session_state:
+            st.session_state.save_to_json = None
 
     def run(self):
         # TITLE
-        st.title("Work Center and Routing Setup")
+        st.title("Work Center and Routing Setup")        
         st.markdown(
         """
         Please input the following details:\n
-        Work center name, capacity (hrs/day), cost/hr\n
-        Routing steps (operation name, time/unit, assigned work center)\n
-        Production quantity\n
+        \t> Work center name, capacity (hrs/day), cost/hr\n
+        \t> Routing steps (operation name, time/unit, assigned work center)\n
+        \t> Production quantity\n
         """
         )
 
-        # TEXT FIELDS
-        # Work Center Data (INPUT)
-        self.work_center_name = st.text_input("Input Below.", placeholder="Work Center Name")
-        self.capacity = st.text_input("", placeholder="Capacity", label_visibility="hidden")
-        self.cost_per_hour = st.text_input("", placeholder="Cost Per Hour", label_visibility="hidden")
+        # Form
+        with st.form("form_data", enter_to_submit=False):
+            # TEXT FIELDS
+            # Work Center Data (INPUT)
+            self.work_center_name = st.text_input("Input Details Below.", placeholder="Work Center Name")
+            self.capacity = st.text_input("", placeholder="Capacity", label_visibility="hidden")
+            self.cost_per_hour = st.text_input("", placeholder="Cost Per Hour", label_visibility="hidden")
 
-        # Routing Data
-        self.operation = st.text_input("", placeholder="Operation", label_visibility="hidden")
-        self.assigned_work_center = st.text_input("", placeholder="Assigned Work Center", label_visibility="hidden")
-        self.time_per_unit = st.text_input("", placeholder="Time Per Unit", label_visibility="hidden")
+            # Routing Data
+            self.operation = st.text_input("", placeholder="Operation", label_visibility="hidden")
+            self.assigned_work_center = st.text_input("", placeholder="Assigned Work Center", label_visibility="hidden")
+            self.time_per_unit = st.text_input("", placeholder="Time Per Unit", label_visibility="hidden")
 
-        # Production Quantity  
-        self.quantity = st.text_input("", placeholder="Quantity", label_visibility="hidden")
+            # Production Quantity  
+            self.quantity = st.text_input("", placeholder="Quantity", label_visibility="hidden")
 
-        # Submit button
-        if st.button("Submit"): 
-            # Completed Form :D
-            if (self.work_center_name and self.capacity and self.cost_per_hour and self.operation
-                and self.assigned_work_center and self.time_per_unit and self.quantity):
-                # Add functionality to add all the details to a JSON File
-                st.text("Form successfully submitted.")
-            # They fucking passed the form..(INCOMPLETE tf?)
-            else:
-                st.text("Please fill up the form completely.")
+            # Submit button
+            self.submitted = st.form_submit_button("Submit")                
+            if self.submitted: 
+                # Completed Form
+                if (self.work_center_name and self.capacity and self.cost_per_hour and self.operation
+                    and self.assigned_work_center and self.time_per_unit and self.quantity):
+                    # Add information to work_center_data dict
+                    st.session_state.work_center_data["work_centers"].append({"name": self.work_center_name, 
+                        "capacity": int(self.capacity), "cost_per_hour": float(self.cost_per_hour)})
+                    st.session_state.work_center_data["routing"].append({"operation": self.operation,
+                        "assigned_work_center": self.assigned_work_center, "time_per_unit": float(self.time_per_unit)})
+                    st.session_state.work_center_data["quantity"] = int(self.quantity)
+
+                    st.text("Form successfully submitted.")                            
+
+                # Form is incomplete
+                else:
+                    st.text("Please fill up the form completely.")
+            
+        # Check to see if the user didn't input anything
+        self.dictionary = st.session_state.work_center_data
+        self.check: bool = (len(self.dictionary["work_centers"]) == 0) and (len(self.dictionary["routing"]) == 0) and not (self.dictionary["quantity"])
+
+        if not (self.check):
+            # Ask user if they want to save, display the data in json format, or no
+            st.text("Save to JSON file?")
+            self.yes, self.no, self.display = st.columns([0.1, 0.1, 0.8])
+            if st.session_state.save_to_json == None:
+                with self.yes:
+                    if st.button("yes"):
+                        st.session_state.save_to_json = True
+                    
+                with self.no:
+                    if st.button("no"):
+                        st.session_state.save_to_json = False
+
+                with self.display:
+                    # Button Independent From Hiding the Text Field
+                    if st.button("Display results"):
+                        if self.check:
+                            st.warning("Currently, there is no data found in work_center_data.", icon="⚠️")
+                        else:
+                            st.success('Successfully displayed data!', icon="✅")
+                        st.json(self.dictionary, expanded=2)
+        else:
+            pass
+
+        # Save form
+        if st.session_state.save_to_json == True:
+            self.note_1 = st.info("NOTE: Data will be saved to JSON.", icon="ℹ️")      
+            with st.form("save_json", enter_to_submit=False):
+                self.file_name = st.text_input("Input below.", placeholder="File name")
+                self.save_file = st.form_submit_button("Submit")
+
+                # Progress bar
+                if bool((len(self.file_name) > 0)) == True:
+                    self.note_1.empty()
+                    self.note_2 = st.info(f"Now saving {self.file_name}.json", icon="ℹ️")
+                    self.progbar = st.progress(0, self.save_text)
+
+                    for p_complete in range(100):
+                        time.sleep(0.01)
+                        self.progbar.progress(p_complete + 1, text=self.save_text)
+                                        
+                    self.note_2.empty()
+                    time.sleep(1)
+                    st.success("Successfully saved JSON File", icon="✅")
+                    self.progbar.empty()
+
+                    # Add code below so that the code saves to a json file in the json folder
+
+                else:
+                    st.warning("File name is empty!", icon="⚠️")
+        else:
+            if st.session_state.save_to_json == None:
                 pass
-        
+            else:
+                st.info("NOTE: Data will not be saved to JSON.", icon="ℹ️")   
+             
 # Run the main function
 if __name__ == '__main__':
-    Main()
+    main = Main()
+    main.run()
 
-# Testing code below
-"""
-if "test_val" not in st.session_state:
-    st.session_state.test_val = {"Values": []}
-
-x = st.text_input("Input name")
-
-if st.button("Test button") and x:
-    st.text("Test", help="Tooltip", width="content")
-    st.session_state.test_val["Values"].append(x)
-    print(st.session_state.test_val)
-    print(f"Test_Val Value: {st.session_state.test_val}\nX Value: {x}")    
-"""
+# TODO:
+# 1.) Add code on line 135+ so that the code saves to a json file in the json folder
+# 2.) Make a new python streamlit file to display the data in tabular form
